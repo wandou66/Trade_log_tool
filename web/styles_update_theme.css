@@ -14,6 +14,8 @@
       --chip: #f2f5fb;
       --shadow: 0 10px 30px rgba(19, 33, 68, 0.06);
       --radius: 16px;
+      --detail-text-primary: #2e3745;
+      --detail-text-secondary: #5e6877;
     }
 
     body.theme-dark {
@@ -26,6 +28,8 @@
       --muted: #969696;
       --chip: #2a2d2e;
       --shadow: 0 18px 42px rgba(0, 0, 0, 0.42);
+      --detail-text-primary: #e8edf6;
+      --detail-text-secondary: #d0d8e4;
     }
 
     * {
@@ -780,10 +784,16 @@
       background: rgba(5, 8, 14, 0.56);
     }
 
+    body.theme-dark .detail-title,
+    body.theme-dark .detail-note-title {
+      color: var(--detail-text-primary);
+    }
+
     body.theme-dark .detail-main-empty,
+    body.theme-dark .detail-subtitle,
     body.theme-dark .detail-note-text,
-    body.theme-dark .detail-subtitle {
-      color: #edf2ff;
+    body.theme-dark .detail-thumb-empty {
+      color: var(--detail-text-secondary);
     }
 
     body.theme-dark .detail-note-card {
@@ -1204,13 +1214,13 @@
       font-size: 30px;
       font-weight: 800;
       letter-spacing: -0.03em;
-      color: #ffffff;
+      color: var(--detail-text-primary);
       text-shadow: 0 1px 12px rgba(0,0,0,0.28);
     }
 
     .detail-subtitle {
       margin: 8px 0 0;
-      color: rgba(255, 255, 255, 0.82);
+      color: var(--detail-text-secondary);
       font-size: 13px;
       line-height: 1.6;
       max-width: 540px;
@@ -1260,7 +1270,7 @@
     }
 
     .detail-main-empty {
-      color: #4b5563;
+      color: var(--detail-text-secondary);
       text-align: center;
       line-height: 1.8;
       font-size: 18px;
@@ -1301,7 +1311,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      color: rgba(255, 255, 255, 0.7);
+      color: var(--detail-text-secondary);
     }
 
     .detail-thumb-empty-text {
@@ -1342,11 +1352,11 @@
       margin: 0 0 10px;
       font-size: 14px;
       font-weight: 700;
-      color: #374151;
+      color: var(--detail-text-primary);
     }
 
     .detail-note-text {
-      color: #4b5563;
+      color: var(--detail-text-secondary);
       line-height: 1.8;
       white-space: pre-wrap;
       font-size: 13px;
@@ -1527,4 +1537,103 @@
 
     #hero-status-dot {
       display: none !important;
+    }
+
+    @media (max-width: 1520px) {
+      .app {
+        grid-template-columns: minmax(360px, 500px) minmax(0, 1fr);
+        min-width: 0;
+      }
+
+      .detail-gallery,
+      .detail-info {
+        width: min(100%, 1670px);
+      }
+
+      .detail-main-image {
+        width: auto;
+        min-width: 0;
+        flex: 1;
+      }
+    }
+
+    @media (max-width: 1120px) {
+      .app {
+        grid-template-columns: 1fr;
+        min-width: 0;
+      }
+
+      .sidebar {
+        position: static;
+        top: auto;
+        align-self: stretch;
+        height: auto;
+        min-height: 0;
+      }
+
+      .content,
+      .content-update {
+        min-width: 0;
+      }
+
+      .fields,
+      .content > .card:nth-of-type(2) .fields,
+      .content > .card:nth-of-type(4) .fields,
+      .emotion-fields {
+        grid-template-columns: 1fr;
+      }
+
+      .emotion-fields .span-2,
+      .emotion-fields .span-3,
+      .content > .card:nth-of-type(4) .field.span-3 {
+        grid-column: auto;
+      }
+
+      .shots {
+        grid-template-columns: 1fr;
+      }
+
+      .detail-dialog {
+        inset: 16px;
+      }
+
+      .detail-body {
+        padding: 16px;
+        overflow: auto;
+      }
+
+      .detail-gallery,
+      .detail-info {
+        width: 100%;
+      }
+
+      .detail-gallery {
+        height: auto;
+        flex-direction: column;
+      }
+
+      .detail-main-image {
+        width: 100%;
+        min-width: 0;
+        height: min(58vw, 420px);
+      }
+
+      .detail-thumbs {
+        width: 100%;
+        min-width: 0;
+        height: auto;
+        flex-direction: row;
+        overflow-x: auto;
+      }
+
+      .detail-thumb {
+        width: 160px;
+        min-width: 160px;
+        height: 90px;
+        flex: 0 0 160px;
+      }
+
+      .detail-info {
+        grid-template-columns: 1fr;
+      }
     }

@@ -649,15 +649,25 @@ function layoutHoldingCards(activeId = null) {
   const containerWidth = els.heroStats.clientWidth || 0;
   const cardWidth = cards[0].offsetWidth || 188;
   const count = cards.length;
+  const compactGap = 14;
+  const compactLayoutThreshold = 5;
 
-  if (!containerWidth || count === 1) {
+  if (!containerWidth || count < compactLayoutThreshold) {
     cards.forEach((card, index) => {
-      card.style.left = count === 1 ? `${Math.max(0, containerWidth - cardWidth)}px` : "0px";
+      card.style.left = `${Math.max(0, index * (cardWidth + compactGap))}px`;
       card.style.zIndex = String(index + 1);
     });
-    if (cards[0]) {
-      cards[0].style.zIndex = activeId && cards[0].dataset.holdingId === activeId ? "50" : "1";
+
+    if (activeId) {
+      const activeCard = cards.find((card) => card.dataset.holdingId === activeId);
+      if (activeCard) {
+        activeCard.style.zIndex = "99";
+      }
     }
+
+    const totalWidth = cardWidth * count + compactGap * (count - 1);
+    els.heroStats.style.height = `${Math.max(184, cards[0].offsetHeight || 184)}px`;
+    els.heroStats.style.maxWidth = `${Math.max(containerWidth, totalWidth)}px`;
     return;
   }
 
@@ -727,10 +737,10 @@ function renderLocalShots() {
     card.style.alignItems = "stretch";
     card.style.justifyContent = "flex-start";
     card.innerHTML = `
-      <img src="${image.data}" alt="${escapeHtml(image.name || `截图 ${index + 1}`)}" style="width:100%;height:100%;object-fit:cover;border-radius:14px;">
-      <div style="position:absolute;left:10px;right:10px;bottom:10px;display:flex;justify-content:space-between;gap:8px;">
-        <span style="padding:4px 8px;border-radius:999px;background:rgba(255,255,255,0.85);font-size:11px;">${escapeHtml(image.name || `截图 ${index + 1}`)}</span>
-        <button type="button" class="btn" data-remove-image="${index}" style="padding:4px 10px;font-size:11px;">删除</button>
+      <img src="${image.data}" alt="${escapeHtml(image.name || `截图 ${index + 1}`)}" style="width:100%;height:118px;object-fit:cover;border-radius:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;margin-top:10px;">
+        <span style="min-width:0;flex:1;padding:4px 0;font-size:11px;line-height:1.4;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(image.name || `截图 ${index + 1}`)}</span>
+        <button type="button" class="btn" data-remove-image="${index}" style="padding:4px 10px;font-size:11px;flex-shrink:0;">删除</button>
       </div>
     `;
     els.localShotList.appendChild(card);
@@ -843,6 +853,12 @@ function renderModalGallery(record) {
 
   if (!record.images.length) {
     els.modalGalleryMain.innerHTML = `<div class="detail-main-empty">这笔档案还没有上传 K 线截图</div>`;
+    for (let index = 0; index < 3; index += 1) {
+      const emptyThumb = document.createElement("div");
+      emptyThumb.className = "detail-thumb detail-thumb-empty";
+      emptyThumb.innerHTML = `<div class="detail-thumb-empty-text">缩略图0${index + 1}</div>`;
+      els.modalGalleryThumbs.appendChild(emptyThumb);
+    }
     return;
   }
 
@@ -852,7 +868,16 @@ function renderModalGallery(record) {
   mainImage.addEventListener("dblclick", () => openFullscreen(mainImage.src, mainImage.alt));
   els.modalGalleryMain.appendChild(mainImage);
 
-  record.images.forEach((image, index) => {
+  for (let index = 0; index < 3; index += 1) {
+    const image = record.images[index];
+    if (!image) {
+      const emptyThumb = document.createElement("div");
+      emptyThumb.className = "detail-thumb detail-thumb-empty";
+      emptyThumb.innerHTML = `<div class="detail-thumb-empty-text">缩略图0${index + 1}</div>`;
+      els.modalGalleryThumbs.appendChild(emptyThumb);
+      continue;
+    }
+
     const thumb = document.createElement("button");
     thumb.type = "button";
     thumb.className = "detail-thumb";
@@ -867,13 +892,19 @@ function renderModalGallery(record) {
       });
     });
     els.modalGalleryThumbs.appendChild(thumb);
-  });
+  }
 }
 
 function openModal(record) {
   const title = getRecordTitle(record);
-  els.modalTitle.textContent = "";
-  els.modalSubtitle.textContent = record.status === "已完成" ? "已完成档案详情" : "持仓中档案详情";
+  els.modalTitle.textContent = title;
+  els.modalSubtitle.textContent = "";
+  if (els.modalSummaryTitle) {
+    els.modalSummaryTitle.textContent = `${title} - 执行摘要`;
+  }
+  if (els.modalNotesTitle) {
+    els.modalNotesTitle.textContent = `${title} - 复盘笔记`;
+  }
   els.modalSummary.textContent = record.executionSummary || makeSummary(record);
   els.modalNotes.textContent = record.reviewNotes || "这笔档案还没有填写复盘笔记。";
   renderModalGallery(record);
@@ -886,6 +917,7 @@ function closeModal() {
 
 function resetFullscreenView() {
   state.fullscreen.zoomed = false;
+  state.fullscreen.scale = 1;
   state.fullscreen.offsetX = 0;
   state.fullscreen.offsetY = 0;
   state.fullscreen.dragging = false;
@@ -898,18 +930,32 @@ function resetFullscreenView() {
   els.fullscreenImage.style.maxWidth = "100%";
   els.fullscreenImage.style.maxHeight = "100%";
   els.fullscreenImage.style.cursor = "zoom-in";
-  els.fullscreenImage.style.transform = "translate(0px, 0px)";
+  els.fullscreenImage.style.transform = "translate(0px, 0px) scale(1)";
+  els.fullscreenImage.style.transformOrigin = "center center";
 }
 
 function clampFullscreenOffsets() {
-  const extraX = Math.max(0, (state.fullscreen.width - window.innerWidth) / 2);
-  const extraY = Math.max(0, (state.fullscreen.height - window.innerHeight) / 2);
+  const scaledWidth = state.fullscreen.width * state.fullscreen.scale;
+  const scaledHeight = state.fullscreen.height * state.fullscreen.scale;
+  const extraX = Math.max(0, (scaledWidth - window.innerWidth) / 2);
+  const extraY = Math.max(0, (scaledHeight - window.innerHeight) / 2);
   state.fullscreen.offsetX = Math.min(extraX, Math.max(-extraX, state.fullscreen.offsetX));
   state.fullscreen.offsetY = Math.min(extraY, Math.max(-extraY, state.fullscreen.offsetY));
 }
 
 function syncFullscreenTransform() {
-  els.fullscreenImage.style.transform = `translate(${state.fullscreen.offsetX}px, ${state.fullscreen.offsetY}px)`;
+  els.fullscreenImage.style.transform = `translate(${state.fullscreen.offsetX}px, ${state.fullscreen.offsetY}px) scale(${state.fullscreen.scale})`;
+}
+
+function refreshFullscreenCursor() {
+  if (!state.fullscreen.zoomed) {
+    els.fullscreenImage.style.cursor = "zoom-in";
+    return;
+  }
+
+  const scaledWidth = state.fullscreen.width * state.fullscreen.scale;
+  const scaledHeight = state.fullscreen.height * state.fullscreen.scale;
+  els.fullscreenImage.style.cursor = scaledWidth > window.innerWidth || scaledHeight > window.innerHeight ? "grab" : "zoom-out";
 }
 
 function toggleFullscreenActualSize() {
@@ -919,6 +965,7 @@ function toggleFullscreenActualSize() {
     const naturalWidth = els.fullscreenImage.naturalWidth || 0;
     const naturalHeight = els.fullscreenImage.naturalHeight || 0;
     state.fullscreen.zoomed = true;
+    state.fullscreen.scale = 1;
     state.fullscreen.offsetX = 0;
     state.fullscreen.offsetY = 0;
     state.fullscreen.width = naturalWidth;
@@ -927,9 +974,9 @@ function toggleFullscreenActualSize() {
     els.fullscreenImage.style.height = `${naturalHeight}px`;
     els.fullscreenImage.style.maxWidth = "none";
     els.fullscreenImage.style.maxHeight = "none";
-    els.fullscreenImage.style.cursor = naturalWidth > window.innerWidth || naturalHeight > window.innerHeight ? "grab" : "zoom-out";
     clampFullscreenOffsets();
     syncFullscreenTransform();
+    refreshFullscreenCursor();
     return;
   }
 
@@ -1213,72 +1260,8 @@ function initOptions() {
   buildMultiChoiceGroup("trade-tags", options.tags);
 }
 
-function renderModalGallery(record) {
-  state.modalImageIndex = 0;
-  els.modalGalleryMain.innerHTML = "";
-  els.modalGalleryThumbs.innerHTML = "";
 
-  if (!record.images.length) {
-    els.modalGalleryMain.innerHTML = `<div class="detail-main-empty">这笔档案还没有上传 K 线截图</div>`;
-    for (let index = 0; index < 3; index += 1) {
-      const emptyThumb = document.createElement("div");
-      emptyThumb.className = "detail-thumb detail-thumb-empty";
-      emptyThumb.innerHTML = `<div class="detail-thumb-empty-text">缩略图0${index + 1}</div>`;
-      els.modalGalleryThumbs.appendChild(emptyThumb);
-    }
-    return;
-  }
-
-  const mainImage = document.createElement("img");
-  mainImage.src = record.images[0].data;
-  mainImage.alt = record.images[0].name || "主图";
-  mainImage.addEventListener("dblclick", () => openFullscreen(mainImage.src, mainImage.alt));
-  els.modalGalleryMain.appendChild(mainImage);
-
-  for (let index = 0; index < 3; index += 1) {
-    const image = record.images[index];
-    if (!image) {
-      const emptyThumb = document.createElement("div");
-      emptyThumb.className = "detail-thumb detail-thumb-empty";
-      emptyThumb.innerHTML = `<div class="detail-thumb-empty-text">缩略图0${index + 1}</div>`;
-      els.modalGalleryThumbs.appendChild(emptyThumb);
-      continue;
-    }
-
-    const thumb = document.createElement("button");
-    thumb.type = "button";
-    thumb.className = "detail-thumb";
-    thumb.innerHTML = `<img src="${image.data}" alt="${escapeHtml(image.name || `缩略图${index + 1}`)}">`;
-    thumb.classList.toggle("active", index === 0);
-    thumb.addEventListener("click", () => {
-      state.modalImageIndex = index;
-      mainImage.src = image.data;
-      mainImage.alt = image.name || `主图 ${index + 1}`;
-      els.modalGalleryThumbs.querySelectorAll(".detail-thumb").forEach((item, itemIndex) => {
-        item.classList.toggle("active", itemIndex === index);
-      });
-    });
-    els.modalGalleryThumbs.appendChild(thumb);
-  }
-}
-
-function openModal(record) {
-  const title = getRecordTitle(record);
-  els.modalTitle.textContent = "";
-  els.modalSubtitle.textContent = "";
-  if (els.modalSummaryTitle) {
-    els.modalSummaryTitle.textContent = `${title}-执行摘要`;
-  }
-  if (els.modalNotesTitle) {
-    els.modalNotesTitle.textContent = `${title}--复盘笔记`;
-  }
-  els.modalSummary.textContent = record.executionSummary || makeSummary(record);
-  els.modalNotes.textContent = record.reviewNotes || "这笔档案还没有填写复盘笔记。";
-  renderModalGallery(record);
-  els.detailModal.classList.add("open");
-}
-
-function renderLocalShots() {
+function renderLocalShotsLegacyDuplicate() {
   els.localShotList.innerHTML = "";
   if (!state.images.length) {
     els.localShotList.innerHTML = `<div class="shot">杩樻病鏈夋埅鍥?/div>`;
@@ -1312,7 +1295,7 @@ function renderLocalShots() {
   });
 }
 
-function resetFullscreenView() {
+function resetFullscreenViewLegacyDuplicate() {
   state.fullscreen.zoomed = false;
   state.fullscreen.scale = 1;
   state.fullscreen.offsetX = 0;
@@ -1331,7 +1314,7 @@ function resetFullscreenView() {
   els.fullscreenImage.style.transformOrigin = "center center";
 }
 
-function clampFullscreenOffsets() {
+function clampFullscreenOffsetsLegacyDuplicate() {
   const scaledWidth = state.fullscreen.width * state.fullscreen.scale;
   const scaledHeight = state.fullscreen.height * state.fullscreen.scale;
   const extraX = Math.max(0, (scaledWidth - window.innerWidth) / 2);
@@ -1340,11 +1323,11 @@ function clampFullscreenOffsets() {
   state.fullscreen.offsetY = Math.min(extraY, Math.max(-extraY, state.fullscreen.offsetY));
 }
 
-function syncFullscreenTransform() {
+function syncFullscreenTransformLegacyDuplicate() {
   els.fullscreenImage.style.transform = `translate(${state.fullscreen.offsetX}px, ${state.fullscreen.offsetY}px) scale(${state.fullscreen.scale})`;
 }
 
-function refreshFullscreenCursor() {
+function refreshFullscreenCursorLegacyDuplicate() {
   if (!state.fullscreen.zoomed) {
     els.fullscreenImage.style.cursor = "zoom-in";
     return;
@@ -1354,7 +1337,7 @@ function refreshFullscreenCursor() {
   els.fullscreenImage.style.cursor = scaledWidth > window.innerWidth || scaledHeight > window.innerHeight ? "grab" : "zoom-out";
 }
 
-function toggleFullscreenActualSize() {
+function toggleFullscreenActualSizeLegacyDuplicate() {
   if (!els.fullscreenModal.classList.contains("open") || !els.fullscreenImage.src) return;
 
   if (!state.fullscreen.zoomed) {
@@ -1379,7 +1362,7 @@ function toggleFullscreenActualSize() {
   resetFullscreenView();
 }
 
-function openFullscreen(src, alt = "主图") {
+function openFullscreenLegacyDuplicate(src, alt = "主图") {
   if (!src) return;
   els.fullscreenImage.src = src;
   els.fullscreenImage.alt = alt;
@@ -1387,12 +1370,12 @@ function openFullscreen(src, alt = "主图") {
   els.fullscreenModal.classList.add("open");
 }
 
-function closeFullscreen() {
+function closeFullscreenLegacyDuplicate() {
   resetFullscreenView();
   els.fullscreenModal.classList.remove("open");
 }
 
-function openModal(record) {
+function openModalLegacyDuplicate(record) {
   const title = getRecordTitle(record);
   els.modalTitle.textContent = "";
   els.modalSubtitle.textContent = "";

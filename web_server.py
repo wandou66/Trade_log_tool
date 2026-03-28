@@ -69,6 +69,24 @@ def normalize_image(image: dict) -> dict:
     }
 
 
+def normalize_string_list(value) -> list[str]:
+    if isinstance(value, str):
+        text = value.strip()
+        return [text] if text else []
+
+    if isinstance(value, (list, tuple, set)):
+        normalized = []
+        for item in value:
+            if item is None:
+                continue
+            text = str(item).strip()
+            if text:
+                normalized.append(text)
+        return normalized
+
+    return []
+
+
 def normalize_record(record: dict) -> dict:
     normalized = {}
     for key, value in record.items():
@@ -103,11 +121,11 @@ def normalize_record(record: dict) -> dict:
         "entryLogicNote": str(normalized.get("entryLogicNote") or ""),
         "directionAttr": str(normalized.get("directionAttr") or ""),
         "directionAttrNote": str(normalized.get("directionAttrNote") or ""),
-        "entryEmotions": list(normalized.get("entryEmotions") or []),
-        "exitEmotions": list(normalized.get("exitEmotions") or []),
+        "entryEmotions": normalize_string_list(normalized.get("entryEmotions")),
+        "exitEmotions": normalize_string_list(normalized.get("exitEmotions")),
         "entryEmotionsNote": str(normalized.get("entryEmotionsNote") or ""),
         "exitEmotionsNote": str(normalized.get("exitEmotionsNote") or ""),
-        "tags": list(normalized.get("tags") or []),
+        "tags": normalize_string_list(normalized.get("tags")),
         "tagsNote": str(normalized.get("tagsNote") or ""),
         "executionSummary": str(normalized.get("executionSummary") or ""),
         "reviewNotes": str(normalized.get("reviewNotes") or ""),
@@ -135,18 +153,27 @@ def normalize_records(payload) -> list[dict]:
 class TradeStore:
     data_file: Path = DATA_FILE
     records: list[dict] = field(default_factory=list)
+    load_error: str | None = None
 
     def __post_init__(self):
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         self.load()
 
     def load(self):
-        if self.data_file.exists():
-            raw = json.loads(self.data_file.read_text(encoding="utf-8"))
-            self.records = normalize_records(raw)
-            self.save()
-        else:
+        self.load_error = None
+        if not self.data_file.exists():
             self.records = []
+            return
+
+        try:
+            raw = json.loads(self.data_file.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError) as exc:
+            self.records = []
+            self.load_error = f"读取数据文件失败：{exc}"
+            print(self.load_error)
+            return
+
+        self.records = normalize_records(raw)
 
     def save(self):
         self.data_file.write_text(
@@ -183,8 +210,12 @@ class AppHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == "/api/trades":
+            if STORE.load_error:
+                return self._send_json({"error": STORE.load_error}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
             return self._send_json({"records": STORE.records})
         if parsed.path == "/api/export":
+            if STORE.load_error:
+                return self._send_json({"error": STORE.load_error}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
             payload = json.dumps(STORE.records, ensure_ascii=False, indent=2).encode("utf-8")
             export_name = f"{datetime.now().strftime('%Y%m%d-%H%M%S')}-trades-export.json"
             self.send_response(HTTPStatus.OK)
@@ -205,6 +236,9 @@ class AppHandler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             return self._send_json({"error": "JSON 格式不正确"}, status=HTTPStatus.BAD_REQUEST)
 
+        if STORE.load_error and parsed.path != "/api/import":
+            return self._send_json({"error": STORE.load_error}, status=HTTPStatus.CONFLICT)
+
         if parsed.path == "/api/trades":
             record = payload.get("record")
             if not isinstance(record, dict):
@@ -217,6 +251,7 @@ class AppHandler(BaseHTTPRequestHandler):
             if not records:
                 return self._send_json({"error": "没有可导入的交易记录"}, status=HTTPStatus.BAD_REQUEST)
             STORE.records = records
+            STORE.load_error = None
             STORE.save()
             return self._send_json({"ok": True, "count": len(records), "records": records})
 
